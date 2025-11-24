@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calcolatore TFR: Azienda vs Fondo Pensione</title>
+    <!-- Importiamo Chart.js per il grafico -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #10b981;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: #1f2937;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 30px;
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        input {
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .advanced-toggle {
+            text-align: center;
+            margin: 20px 0;
+            color: #6b7280;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 0.9rem;
+        }
+
+        .advanced-options {
+            display: none;
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .results-section {
+            display: none; /* Nascosto finché non si calcola */
+            margin-top: 40px;
+            border-top: 2px solid #e5e7eb;
+            padding-top: 40px;
+        }
+
+        .cards-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+        }
+
+        .card.winner {
+            border: 2px solid var(--success);
+            background-color: #ecfdf5;
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: #4b5563;
+        }
+
+        .big-number {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #111827;
+            margin: 10px 0;
+        }
+
+        .net-label {
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .tax-info {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        canvas {
+            max-height: 400px;
+        }
+
+        @media (max-width: 600px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>⚖️ TFR in Azienda vs Fondo Pensione</h1>
+        
+        <!-- Input Principali -->
+        <div class="input-grid">
+            <div class="input-group">
+                <label for="eta">Età Attuale</label>
+                <input type="number" id="eta" value="49" placeholder="Es. 49">
+            </div>
+            <div class="input-group">
+                <label for="ral">RAL Attuale (€)</label>
+                <input type="number" id="ral" value="151381" placeholder="Es. 30000">
+            </div>
+            <div class="input-group">
+                <label for="tfr_acc">TFR Già Accantonato (€)</label>
+                <input type="number" id="tfr_acc" value="102404" placeholder="Es. 10000">
+            </div>
+        </div>
+
+        <!-- Opzioni Avanzate (Nascoste di default) -->
+        <div class="advanced-toggle" onclick="toggleAdvanced()">Mostra parametri avanzati (Tassi e Tasse)</div>
+        
+        <div class="advanced-options" id="advancedOptions">
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>Età Pensionamento</label>
+                    <input type="number" id="eta_pensione" value="67">
+                </div>
+                <div class="input-group">
+                    <label>Crescita RAL Annua (%)</label>
+                    <input type="number" id="crescita_ral" value="1.01" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>Rivalutazione TFR Azienda (%)</label>
+                    <input type="number" id="rendimento_tfr" value="2.85" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>Rendimento Fondo Pensione (%)</label>
+                    <input type="number" id="rendimento_fp" value="3.00" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>Aliquota Tassazione Azienda (%)</label>
+                    <input type="number" id="tax_azienda" value="34.0" step="0.1" title="Media stimata basata sul tuo excel">
+                </div>
+                <div class="input-group">
+                    <label>Aliquota Tassazione Fondo (%)</label>
+                    <input type="number" id="tax_fp" value="9.6" step="0.1" title="Media stimata finale">
+                </div>
+            </div>
+        </div>
+
+        <button onclick="calcola()">Calcola Previsione</button>
+
+        <!-- Risultati -->
+        <div class="results-section" id="results">
+            <div class="cards-container">
+                <!-- Card Azienda -->
+                <div class="card" id="card_azienda">
+                    <h3>Lasciando in Azienda</h3>
+                    <div class="big-number" id="res_azienda_netto">€ 0</div>
+                    <div class="net-label">Netto Stimato</div>
+                    <div class="tax-info">
+                        Lordo: <span id="res_azienda_lordo">€ 0</span><br>
+                        Tasse: <span id="res_azienda_tasse">€ 0</span>
+                    </div>
+                </div>
+
+                <!-- Card Fondo Pensione -->
+                <div class="card" id="card_fp">
+                    <h3>Fondo Pensione</h3>
+                    <div class="big-number" id="res_fp_netto">€ 0</div>
+                    <div class="net-label">Netto Stimato</div>
+                    <div class="tax-info">
+                        Lordo: <span id="res_fp_lordo">€ 0</span><br>
+                        Tasse: <span id="res_fp_tasse">€ 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <canvas id="growthChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Variabile globale per il grafico
+        let myChart = null;
+
+        function toggleAdvanced() {
+            const adv = document.getElementById('advancedOptions');
+            adv.style.display = adv.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function formatMoney(number) {
+            return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(number);
+        }
+
+        function calcola() {
+            // 1. Recupero Dati Input
+            const eta = parseFloat(document.getElementById('eta').value);
+            let ral = parseFloat(document.getElementById('ral').value);
+            const tfr_acc = parseFloat(document.getElementById('tfr_acc').value);
+            
+            // Parametri Avanzati
+            const eta_pensione = parseFloat(document.getElementById('eta_pensione').value);
+            const perc_crescita_ral = parseFloat(document.getElementById('crescita_ral').value) / 100; // Input 1.01% -> è crescita
+            // Attenzione: nel tuo excel "1,01" sembra un moltiplicatore (quindi +1%). 
+            // Se nel box metti 1.01 intendi +1.01%. Se intendevi moltiplicatore x1.01 allora è +1%.
+            // Assumo crescita dell'1% annuo come standard prudenziale.
+            const tasso_crescita_stipendio = 0.01; 
+
+            const rendimento_azienda_pct = parseFloat(document.getElementById('rendimento_tfr').value) / 100;
+            const rendimento_fp_pct = parseFloat(document.getElementById('rendimento_fp').value) / 100;
+            
+            const tax_rate_azienda = parseFloat(document.getElementById('tax_azienda').value) / 100;
+            const tax_rate_fp = parseFloat(document.getElementById('tax_fp').value) / 100;
+
+            const coefficiente_tfr = 0.0691; // Fisso da legge
+
+            // 2. Logica di Calcolo (Loop anno per anno)
+            let anni_mancanti = eta_pensione - eta;
+            let montante_azienda = tfr_acc;
+            let montante_fp = tfr_acc; // Assumiamo che sposti tutto nel fondo
+            
+            let array_anni = [];
+            let array_azienda = [];
+            let array_fp = [];
+
+            for (let i = 0; i <= anni_mancanti; i++) {
+                // Salviamo i dati per il grafico all'inizio dell'anno
+                array_anni.push(eta + i);
+                array_azienda.push(montante_azienda);
+                array_fp.push(montante_fp);
+
+                if (i < anni_mancanti) {
+                    // Calcolo quota TFR annuale
+                    let quota_tfr_anno = ral * coefficiente_tfr;
+
+                    // Calcolo Azienda
+                    // Formula: (Montante precedente + rivalutazione) + nuovo versamento
+                    // Nota: la rivalutazione si applica sul montante dell'anno prima
+                    let rivalutazione_azienda = montante_azienda * rendimento_azienda_pct;
+                    montante_azienda = montante_azienda + rivalutazione_azienda + quota_tfr_anno;
+
+                    // Calcolo Fondo Pensione
+                    let rendimento_fp = montante_fp * rendimento_fp_pct;
+                    montante_fp = montante_fp + rendimento_fp + quota_tfr_anno;
+
+                    // Aumento RAL per l'anno prossimo
+                    ral = ral * (1 + tasso_crescita_stipendio);
+                }
+            }
+
+            // 3. Calcolo Tassazione Finale
+            // Azienda
+            let tasse_azienda = montante_azienda * tax_rate_azienda;
+            let netto_azienda = montante_azienda - tasse_azienda;
+
+            // Fondo Pensione
+            let tasse_fp = montante_fp * tax_rate_fp;
+            let netto_fp = montante_fp - tasse_fp;
+
+            // 4. Aggiornamento UI
+            document.getElementById('results').style.display = 'block';
+
+            // Azienda
+            document.getElementById('res_azienda_lordo').innerText = formatMoney(montante_azienda);
+            document.getElementById('res_azienda_tasse').innerText = formatMoney(tasse_azienda);
+            document.getElementById('res_azienda_netto').innerText = formatMoney(netto_azienda);
+
+            // FP
+            document.getElementById('res_fp_lordo').innerText = formatMoney(montante_fp);
+            document.getElementById('res_fp_tasse').innerText = formatMoney(tasse_fp);
+            document.getElementById('res_fp_netto').innerText = formatMoney(netto_fp);
+
+            // Evidenzia il vincitore
+            const cardAz = document.getElementById('card_azienda');
+            const cardFp = document.getElementById('card_fp');
+            cardAz.classList.remove('winner');
+            cardFp.classList.remove('winner');
+
+            if (netto_fp > netto_azienda) {
+                cardFp.classList.add('winner');
+            } else {
+                cardAz.classList.add('winner');
+            }
+
+            // 5. Generazione Grafico
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: array_anni,
+                    datasets: [
+                        {
+                            label: 'TFR in Azienda (Lordo)',
+                            data: array_azienda,
+                            borderColor: '#ef4444', // Rosso
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true
+                        },
+                        {
+                            label: 'Fondo Pensione (Lordo)',
+                            data: array_fp,
+                            borderColor: '#10b981', // Verde
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Proiezione Capitale Lordo nel Tempo'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + 
+                                           new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(context.raw);
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
