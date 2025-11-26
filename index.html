@@ -6,23 +6,22 @@
     <title>Simulatore TFR e Fondo Pensione</title>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Plugin per le etichette (cifre) sul grafico -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     
     <style>
         :root {
-            --primary: #0f172a; /* Blu scuro sfondo */
-            --accent: #38bdf8;  /* Azzurro acceso per dettagli */
+            --primary: #0f172a; /* Blu Notte Scuro */
+            --accent: #38bdf8;  /* Azzurro acceso */
             --green: #22c55e;
             --red: #ef4444;
-            --card-bg: #1e293b; /* Card su tono blu scuro */
+            --card-bg: #1e293b; /* Card su tono blu */
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
         }
 
         body { 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            background: #cbd5e1; /* Grigio neutro esterno */
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+            background: #cbd5e1; 
             padding: 20px; 
             margin: 0; 
         }
@@ -72,7 +71,8 @@
             margin-bottom: 8px; 
         }
         
-        input[type="number"] { 
+        /* Input generici */
+        input { 
             padding: 12px; 
             border: 1px solid #334155; 
             background: #1e293b; 
@@ -83,7 +83,7 @@
             transition: all 0.2s; 
         }
         
-        input[type="number"]:focus { 
+        input:focus { 
             border-color: var(--accent); 
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2); 
         }
@@ -150,13 +150,12 @@
             font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 5px;
         }
 
-        /* Chart Box con sfondo grigio tenue */
         .chart-box { 
             position: relative; 
-            height: 450px; /* Un po' più alto per far stare le etichette */
+            height: 450px; 
             width: 100%; 
             margin-top: 30px; 
-            background: #f1f5f9; /* Colore Tenue (Slate 100) */
+            background: #f1f5f9; /* Grigio tenue per il grafico */
             border-radius: 12px; 
             padding: 15px; 
         }
@@ -164,7 +163,7 @@
         @media (max-width: 650px) { .cards { grid-template-columns: 1fr; } .container { padding: 20px; } }
     </style>
 </head>
-<body>
+<body onload="initInputs()">
 
 <div class="container">
     <h1>⚖️ Calcolatore TFR Avanzato</h1>
@@ -182,11 +181,12 @@
         </div>
         <div class="input-group">
             <label>RAL Attuale (€)</label>
-            <input type="number" id="ral" value="50000">
+            <!-- Nota: type="text" per permettere la formattazione con punti -->
+            <input type="text" id="ral" value="50.000" oninput="formatMoneyInput(this)">
         </div>
         <div class="input-group">
             <label>TFR Accantonato (€)</label>
-            <input type="number" id="tfr_start" value="0">
+            <input type="text" id="tfr_start" value="0" oninput="formatMoneyInput(this)">
         </div>
     </div>
 
@@ -202,7 +202,7 @@
             <input type="number" id="rate_az" value="2.85" step="0.01">
         </div>
         <div class="input-group">
-            <label>Rendimento Fondo (Netto o Già tassato) (%)</label>
+            <label>Rendimento Fondo (Netto) (%)</label>
             <input type="number" id="rate_fp" value="3.00" step="0.01">
         </div>
     </div>
@@ -218,11 +218,11 @@
     <div class="grid-wrapper">
         <div class="input-group">
             <label>Aliquota Media Azienda (%)</label>
-            <input type="number" id="tax_az_total" value="0" step="0.01" disabled title="Calcolata su IRPEF Capitale + 17% Rendimento">
+            <input type="number" id="tax_az_total" value="0" step="0.01" disabled title="Include IRPEF Naz + Reg + Com su capitale">
         </div>
         <div class="input-group">
             <label>Aliquota Media Fondo (%)</label>
-            <input type="number" id="tax_fp_total" value="0" step="0.01" disabled title="Calcolata su Anzianità Capitale + 0% Rendimento">
+            <input type="number" id="tax_fp_total" value="0" step="0.01" disabled title="Calcolata su Anzianità Capitale">
         </div>
     </div>
 
@@ -239,7 +239,7 @@
                 <div class="sub-info">
                     Lordo Totale: <span class="val-lordo" id="res_lordo_az">€ 0</span><br>
                     Tasse Totali: <span class="val-tasse" id="res_tasse_az">€ 0</span><br>
-                    <span class="tax-details" id="dettaglio_tax_az">Capitale: IRPEF | Rendimento: 17%</span>
+                    <span class="tax-details" id="dettaglio_tax_az">Capitale: IRPEF++ | Rendimento: 17%</span>
                 </div>
             </div>
 
@@ -263,10 +263,37 @@
 </div>
 
 <script>
-    // Registriamo il plugin per le etichette
     Chart.register(ChartDataLabels);
-
     let myChart = null;
+
+    // --- UTILS FORMATTAZIONE ---
+    function initInputs() {
+        // Formatta i valori iniziali al caricamento
+        formatMoneyInput(document.getElementById('ral'));
+        formatMoneyInput(document.getElementById('tfr_start'));
+    }
+
+    function formatMoneyInput(input) {
+        // Rimuove tutto ciò che non è numero
+        let value = input.value.replace(/\D/g, ''); 
+        if(value === "") { 
+            input.value = ""; 
+            return; 
+        }
+        // Formatta con i punti delle migliaia
+        value = new Intl.NumberFormat('it-IT').format(value);
+        input.value = value;
+    }
+
+    function getRawValue(id) {
+        // Recupera il valore numerico pulito (senza punti)
+        const val = document.getElementById(id).value.replace(/\./g, '');
+        return parseFloat(val) || 0;
+    }
+
+    function toMoney(num) {
+        return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(num);
+    }
 
     function toggleTaxInputs() {
         const isManual = document.getElementById('manual_tax_toggle').checked;
@@ -279,17 +306,40 @@
         if (!isManual) calcola(true); 
     }
 
-    function toMoney(num) {
-        return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(num);
-    }
+    // --- LOGICHE FISCALI AGGIORNATE ---
+    
+    // Calcolo IRPEF Completa (Nazionale + Regionale + Comunale)
+    function getFullIrpefRate(ral) {
+        // A. IRPEF NAZIONALE (Scaglioni 2024/25)
+        let irpefNaz = 0;
+        if (ral <= 28000) {
+            irpefNaz = ral * 0.23;
+        } else if (ral <= 50000) {
+            irpefNaz = (28000 * 0.23) + ((ral - 28000) * 0.35);
+        } else {
+            irpefNaz = (28000 * 0.23) + (22000 * 0.35) + ((ral - 50000) * 0.43);
+        }
 
-    // --- LOGICHE ---
-    function getIrpefRate(ral) {
-        let tax = 0;
-        if (ral <= 28000) tax = ral * 0.23;
-        else if (ral <= 50000) tax = 6440 + ((ral - 28000) * 0.35);
-        else tax = 14140 + ((ral - 50000) * 0.43);
-        return tax / ral;
+        // B. ADDIZIONALE REGIONALE (Scaglioni forniti da utente)
+        // 1,73% fino a 15k | 2,96% 15-28k | 3,20% 28-50k | 3,33% >50k
+        let addReg = 0;
+        if (ral <= 15000) {
+            addReg = ral * 0.0173;
+        } else if (ral <= 28000) {
+            addReg = (15000 * 0.0173) + ((ral - 15000) * 0.0296);
+        } else if (ral <= 50000) {
+            addReg = (15000 * 0.0173) + (13000 * 0.0296) + ((ral - 28000) * 0.0320);
+        } else {
+            addReg = (15000 * 0.0173) + (13000 * 0.0296) + (22000 * 0.0320) + ((ral - 50000) * 0.0333);
+        }
+
+        // C. ADDIZIONALE COMUNALE (0.8% Flat)
+        let addCom = ral * 0.008;
+
+        let totaleTasse = irpefNaz + addReg + addCom;
+        
+        // Ritorna l'aliquota media effettiva
+        return totaleTasse / ral;
     }
 
     function getFpRate(years) {
@@ -300,10 +350,11 @@
     }
 
     function calcola(updateInputsOnly = false) {
+        // Input numerici puliti
         const eta = parseFloat(document.getElementById('eta').value);
         const eta_end = parseFloat(document.getElementById('eta_pensione').value);
-        let ral = parseFloat(document.getElementById('ral').value);
-        const tfr_start = parseFloat(document.getElementById('tfr_start').value);
+        const ral = getRawValue('ral'); // Uso funzione helper
+        const tfr_start = getRawValue('tfr_start'); // Uso funzione helper
         
         const p_growth = parseFloat(document.getElementById('growth_ral').value) / 100;
         const p_rate_az = parseFloat(document.getElementById('rate_az').value) / 100;
@@ -311,14 +362,17 @@
         
         const years = eta_end - eta;
         const coeff_tfr = 0.0691;
+        
+        // Aliquote fisse sui rendimenti
         const tax_rendimenti_az = 0.17; 
-        const tax_rendimenti_fp = 0.00; 
+        const tax_rendimenti_fp = 0.00; // 0% perché rendimento FP è netto
 
         let capitale_accumulato = tfr_start; 
         let montante_az = tfr_start;
         let montante_fp = tfr_start;
         let current_ral = ral;
 
+        // Loop Accumulo
         for(let i=1; i<=years; i++) {
             let quota = current_ral * coeff_tfr;
             capitale_accumulato += quota;
@@ -330,7 +384,7 @@
         let rendimento_az = montante_az - capitale_accumulato;
         let rendimento_fp = montante_fp - capitale_accumulato;
 
-        // Tasse
+        // --- CALCOLO TASSE ---
         const isManual = document.getElementById('manual_tax_toggle').checked;
         let tasse_az_totale = 0;
         let tasse_fp_totale = 0;
@@ -338,16 +392,19 @@
         let effective_rate_fp = 0;
 
         if (!isManual) {
-            let rate_irpef = getIrpefRate(current_ral); 
-            let tax_az_capitale = capitale_accumulato * rate_irpef;
+            // AZIENDA: IRPEF COMPLETA su Capitale + 17% su Rendimento
+            let rate_irpef_completa = getFullIrpefRate(current_ral); // Include Naz+Reg+Com
+            let tax_az_capitale = capitale_accumulato * rate_irpef_completa;
             let tax_az_rendimento = rendimento_az * tax_rendimenti_az;
             tasse_az_totale = tax_az_capitale + tax_az_rendimento;
 
+            // FONDO: 15-9% su Capitale + 0% Rendimento
             let rate_fp_agevolata = getFpRate(years);
             let tax_fp_capitale = capitale_accumulato * rate_fp_agevolata;
             let tax_fp_rendimento = rendimento_fp * tax_rendimenti_fp; 
             tasse_fp_totale = tax_fp_capitale + tax_fp_rendimento;
 
+            // Calcolo aliquota media per display
             effective_rate_az = (tasse_az_totale / montante_az) * 100;
             effective_rate_fp = (tasse_fp_totale / montante_fp) * 100;
 
@@ -355,7 +412,7 @@
             document.getElementById('tax_fp_total').value = effective_rate_fp.toFixed(2);
             
             document.getElementById('dettaglio_tax_az').innerText = 
-                `Capitale: ${(rate_irpef*100).toFixed(1)}% (Irpef) | Rendimento: 17%`;
+                `Capitale: ${(rate_irpef_completa*100).toFixed(2)}% (Irpef+Add) | Rendimento: 17%`;
             document.getElementById('dettaglio_tax_fp').innerText = 
                 `Capitale: ${(rate_fp_agevolata*100).toFixed(1)}% (Agev.) | Rendimento: 0%`;
         } else {
@@ -420,12 +477,10 @@
                     tooltip: {
                         callbacks: { label: (c) => c.dataset.label + ': ' + toMoney(c.raw) }
                     },
-                    // Configurazione ETICHETTE (Cifre)
                     datalabels: {
                         anchor: 'center',
                         align: 'center',
                         formatter: function(value) {
-                            // Formatta in Euro compatto (es. € 120k) se troppo grande, o intero
                             if (value > 1000) return '€ ' + (value/1000).toFixed(0) + 'k';
                             return toMoney(value);
                         }
